@@ -1,0 +1,205 @@
+---
+title: "Intro to DS - Linear Model Part I"
+author: "Folaranmi Adeyeri"
+# date: "today"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    number_sections: false
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+---
+
+```{r init, include=FALSE}
+# some of common options (and the defaults) are: 
+# include=T, eval=T, echo=T, results='hide'/'asis'/'markup',..., collapse=F, warning=T, message=T, error=T, cache=T, fig.width=6, fig.height=4, fig.dim=c(6,4) #inches, fig.align='left'/'center','right', 
+library(ezids)
+# knitr::opts_chunk$set(warning = F, results = "markup", message = F)
+knitr::opts_chunk$set(warning = F, results = "hide", message = F)
+options(scientific=T, digits = 3) 
+# options(scipen=9, digits = 3) 
+# ‘scipen’: integer. A penalty to be applied when deciding to print numeric values in fixed or exponential notation.  Positive values bias towards fixed and negative towards scientific notation: fixed notation will be preferred unless it is more than ‘scipen’ digits wider.
+# use scipen=999 to prevent scientific notation at all times
+```
+
+# Linear models - Quantitative Regressors 
+
+This uses `bikedata.csv` on this GitHub repo.  
+
+### Question 1  
+**Import the data and name it `bikeorig`.  Remove `Date`, `Casual_Users`, and `Registered_Users` from the dataset and save it as a new data frame named `bike`.  How many variables are in `bike`? How many of them are imported as `int`? Feel free to rename longer variable names into shorter ones for convenience.**
+
+
+There are 11 variables.
+9 variables are imported as integers in bike
+```{r, results='markup'}
+library(tidyverse)
+
+bikeorig = data.frame(read.csv("bikedata.csv"))
+
+#Get selected columns to then use for removal for columns
+selectedRows <- names(bikeorig) %in% c("Date", "Casual.Users", "Registered.Users")
+bike <- bikeorig[!selectedRows]
+
+#Count the number of columns to get the number of variables
+ncol(bike)
+
+str(bike)
+colnames(bike)[4:8] = c("Day", "Workday", "Weather", "Temp", "Feels_Like")
+```
+
+### Question 2    
+**Select the subset with `Hour` equal 16 only and name the new data frame `bike16`.  These are the afternoon rush hour data. How many observations are there?**  
+
+There are 730 observations
+```{r, results='markup'}
+bike16 <- subset(bike, Hour == 16)
+count(bike16)
+```
+
+### Question 3  
+**Before building any models, we should make sure the variables are set up properly.  Which ones should be recorded as categorical? Convert them now before proceeding to the model building.**
+
+We will go ahead and answer this question for you...
+
+```{r, eval=TRUE}
+bike_final <- bike16
+bike_final$Season <- factor(bike16$Season)
+bike_final$Holiday <- factor(bike16$Holiday)
+bike_final$Day <- factor(bike16$Day)
+bike_final$Workday <- factor(bike16$Workday)
+bike_final$Weather <- factor(bike16$Weather)
+str(bike_final)
+```
+
+The above code converts the following variables into categorical (factor):  
+`Season`, `Holiday`, `Day`, `Workday`, and `Weather`.  Notice that 
+the data frame `bike16` still has all variables numerical, while the data frame `bike_final` 
+has the categorical columns that we just converted. 
+
+### Question 4  
+**Make a `pairs()` plot with all the variables (quantitative and qualitative) in the `bike_final` dataset.**  
+
+```{r, results='markup'}
+library(lattice)
+pairs(bike_final)
+```
+
+Note: While the `cor()` function does not accept categorical variables (and therefore 
+we cannot use it for `corrplot()`), the `lattice::pairs()` function does not complain 
+about categorical columns. We can still use it to get a visual distribution of 
+data values from it.
+
+### Question 5 
+**Make a `corrplot()` with only the numerical variables in the `bike_final` dataset.**  
+
+```{r, results='markup'}
+library('corrplot')
+
+numericalBike <- select_if(bike_final, is.numeric)
+correlation = cor(numericalBike)
+corrplot(correlation, method = 'number')
+```
+
+Note: correlation functions will not work with categorical/factor variables. 
+You can either subset the data frame to only numerical variables first, then create 
+the correlation matrix to plot. Or you can create the correlation matrix from 
+`bike16`, then select out the portion of the matrix that you want. 
+Use options that does a good job showing the relationships between different variables. 
+ 
+
+### Question 6   
+**Using only the numerical variables from the `bike_final` dataset, build a linear model with 1 independent variable to predict the `Total Users`.  Choose the variable with the strongest correlation coefficient. Comment on the coefficient values, their p-values, and the multiple R-squared value.**  
+
+```{r, results='markup'}
+linearData1 <- lm(Total.Users ~ Temp, data = numericalBike)
+summary(linearData1)
+```
+* With the multiple R-squared value, there is 30.4% variability in Total.Users being explained by Temp in this linear model.
+* With the p-values, the Intercept value is at b = -0.154, about 18.1 std err away from zero, with p-value 0.99.  It is large, meaning it is not very significant.
+* With the coefficient for Temp is at b1 = 4.828, about 17.9 std err away from zero, with p-value 2⨉10−16. This is extremely small, meaning it is very significant.
+
+
+### Question 7   
+**Next, add a second variable to the model.  Choose the variable with the next strongest correlation, but avoid using obviously collinear variables (`TempF` and `TempFF` for example).  Comment on the coefficient values, their p-values, and the multiple R-squared value.**
+
+
+* With the multiple R-squared value, there is 30.7% variability in Total.Users being explained by Temp + Wind.Speed in this linear model.
+* With the p-values, the Intercept value is at b = 14.283, about 20.4 std err away from zero, with p-value 0.48. It is large, meaning it is not very significant.
+* With the coefficient for Temp is at b1 = 4.815, about 0.27 std err away from zero, with p-value 2⨉10−16. This is extremely small, meaning it is very significant.
+* With the coefficient for Wind.Speed is at b2 = -0.853, about 1.53 std err away from zero, with p-value 0.13. This is large, meaning it is not very significant.
+
+
+```{r, results='markup'}
+library(car)
+
+linearData2 <- lm(Total.Users ~ Temp + Wind.Speed, data = numericalBike)
+
+#To check for the correlation to use
+vif(linearData2)
+summary(linearData2)
+```
+Note: When you have the model, check the VIF values. If the VIF is higher than 5, discard this model, and try the variable with the next strongest correlation until you find one that works 
+(ideally with VIF<5, or if you have to, allow VIF up to 10).  
+
+
+### Question 8  
+**We will try one more time as in the previous question, to add a third numeric variable in our model.**  
+
+
+* With the multiple R-squared value, there is 34.9% variability in Total.Users being explained by Temp + Wind.Speed + Humidity in this linear model.
+* With the p-values, the Intercept value is at b = 121.044, about 25.2 std err away from zero, with p-value 1.9x10-6. It is small, meaning it is very significant.
+* With the coefficient for Temp is at b1 = 4.552, about 0.27 std err away from zero, with p-value 2⨉10−16. This is extremely small, meaning it is very significant.
+* With the coefficient for Wind.Speed is at b2 = -1.385, about 0.52 std err away from zero, with p-value 0.011. This is small, meaning it is significant.
+* With the coefficient for Humidity is at b3 = -1.640, about 0.24 std err away from zero, with p-value 1.8x10-11. This is small, meaning it is very significant.
+
+```{r, results='markup'}
+linearData3 <- lm(Total.Users ~ Temp + Wind.Speed + Humidity, data = numericalBike)
+
+#To check for the correlation to use
+vif(linearData3)
+summary(linearData3)
+```
+### Question 9  
+**For the three variable model you found in Q8, find the confidence intervals of the coefficients.**  
+
+```{r, results='markup'}
+#Using cor.test to find the confidence interval of the Temp variable
+tempInter <- cor.test(numericalBike$Total.Users, numericalBike$Temp)
+tempInter
+```
+
+```{r, results='markup'}
+#Using cor.test to find the confidence interval of the Wind.Speed variable
+speedInter <- cor.test(numericalBike$Total.Users, numericalBike$Wind.Speed)
+speedInter
+```
+
+```{r, results='markup'}
+#Using cor.test to find the confidence interval of the Humidity variable
+humidInter <- cor.test(numericalBike$Total.Users, numericalBike$Humidity)
+humidInter
+```
+
+### Question 10    
+**Use ANOVA to compare the three different models you found. Interpret the results. What conclusion can you draw?**  
+
+Model 2 has a p-value of 0.11 which means there is no statistically significant difference which means we are goin to accept the null hypothesis and model 3 with the three variables has a p-value of 1.8x10-11 which means it has a statistically significant difference which mean we are going reject the null hypothesis
+
+```{r, results='markup'}
+#This returned the comparison between the models
+anovaRes <- anova(linearData1,linearData2,linearData3)
+anovaRes
+str(anovaRes)
+xkabledply(anovaRes, title = "ANOVA comparison between the models")
+```
+
+
+
+
+
